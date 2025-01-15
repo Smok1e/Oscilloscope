@@ -197,7 +197,7 @@ void Main::start()
 
 void Main::loadShaders()
 {
-	m_postfx_shader.loadFromFile("Resources/Shaders/postfx.frag", sf::Shader::Fragment);
+	m_postfx_shader.loadFromFile("resources/shaders/postfx.frag", sf::Shader::Fragment);
 }
 
 //=================================================	Signal processing
