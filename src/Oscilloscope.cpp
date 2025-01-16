@@ -1,4 +1,5 @@
 ﻿#pragma warning(disable: 6385)
+#pragma warning(disable: 4244)
 
 #include <iostream>
 #include <chrono>
@@ -73,8 +74,8 @@ private:
 	alu::SoundCaptureDevice   m_capture_device   {};
 	alu::SoundBuffer          m_sound_buffer     {};
 
-	std::chrono::high_resolution_clock::time_point m_last_render_time {};
-    int                                            m_fps {};
+	std::chrono::system_clock::time_point m_last_render_time {};
+    int                                   m_fps {};
 
 	sf::ContextSettings       m_context_settings {};
 	sf::RenderWindow          m_render_window    {};
@@ -83,9 +84,9 @@ private:
 	std::deque<sf::Vector2f>  m_points     {};
 	int                       m_max_points {1000};
 
-	int                                   m_recording_interval_ms {50};
-	std::chrono::system_clock::time_point m_recording_start_time  {};
-	size_t                                m_last_processed_sample {0};
+	int                                            m_recording_interval_ms {50};
+	std::chrono::high_resolution_clock::time_point m_recording_start_time  {};
+	size_t                                         m_last_processed_sample {0};
 
 	float m_x_amplification  {1000.f};
 	float m_y_amplification  {1000.f};

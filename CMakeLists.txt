@@ -15,11 +15,18 @@ add_executable(
 	src/Oscilloscope.cpp
 )
 
-# OpenALUtils
-add_subdirectory(external)
-target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML)
-
 # ImGUI-SFML
+if (WIN32)
+	# On windows use vcpkg
+	find_package(ImGui-SFML CONFIG REQUIRED)             
+	target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML) 
+else()
+	# Otherwise building from sources
+	add_subdirectory(external/ImGUI-SFML)
+	target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML)
+endif()
+
+# OpenALUtils
 add_subdirectory(external/OpenALUtils)
 target_link_libraries(Oscilloscope PRIVATE OpenALUtils)
 
