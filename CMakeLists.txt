@@ -13,6 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(
 	Oscilloscope 
 	src/Oscilloscope.cpp
+	src/ImmersiveDarkMode.cpp
 )
 
 # ImGUI-SFML
@@ -20,11 +21,13 @@ if (WIN32)
 	# On windows use vcpkg
 	find_package(ImGui-SFML CONFIG REQUIRED)             
 	target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML) 
-else()
+
+	add_compile_definitions(OSCILLOSCOPE_WINDOWS)
+else ()
 	# Otherwise building from sources
 	add_subdirectory(external/ImGUI-SFML)
 	target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML)
-endif()
+endif ()
 
 # OpenALUtils
 add_subdirectory(external/OpenALUtils)

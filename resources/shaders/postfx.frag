@@ -38,7 +38,7 @@ vec4 calc_color(vec2 coords)
 	vec2 uv = (coords - texture_offset) / texture_size;
 	vec4 color = texture(texture_data, barrel_distortion(uv));
 
-	if ((int(coords.y) % 4) * (int(coords.x) % 4) == 0)
+	if ((int(coords.y) % 4) == 0)
 		return interpolate(background_color, color, .6f);
 
 	else

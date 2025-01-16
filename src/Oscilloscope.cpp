@@ -16,6 +16,8 @@
 #include <imgui.h>
 #include <imgui-SFML.h>
 
+#include "ImmersiveDarkMode.hpp"
+
 using namespace std::chrono_literals;
 
 //=================================================
@@ -102,7 +104,9 @@ private:
 
 	sf::Shader m_postfx_shader {};
 
-	int m_interface_width { 500 };
+	int  m_interface_width        { 500  };
+	bool m_interface_visible      { true };
+	bool m_interface_visible_last { true };
 
 	void loadShaders();
 
@@ -144,16 +148,15 @@ private:
 
 void Main::start()
 {
+	m_context_settings.antialiasingLevel = 8;
+
 	m_capture_device.setBuffer(m_sound_buffer);
 	m_capture_device.setProcessingInterval(std::chrono::milliseconds(m_recording_interval_ms));
 
-	const sf::Vector2u window_size(1000 + m_interface_width, 1000);
-	m_render_window.create(sf::VideoMode(window_size.x, window_size.y), "Oscilloscope");
+	m_render_window.create(sf::VideoMode(800, 600), "Oscilloscope");
 	m_render_window.setVerticalSyncEnabled(m_vertical_sync);
 
-	m_context_settings.antialiasingLevel = 8;
-	m_render_texture.create(window_size.x - m_interface_width, window_size.y, m_context_settings);
-	m_sprite.setTexture(m_render_texture.getTexture());
+	resize(sf::Vector2u(1000 + m_interface_width, 1000), m_interface_width);
 
 	loadShaders();
 
@@ -162,6 +165,9 @@ void Main::start()
 		std::cerr << "ImGUI-SFML initialization failure" << std::endl;
 		return;
 	}
+
+	if (!TryEnableImmersiveDarkMode(m_render_window))
+		std::cout << "Immersive dark mode is unavailable" << std::endl;
 
 	sf::Clock delta_clock;
 
@@ -188,7 +194,6 @@ void Main::start()
 		m_render_texture.display();
 	
 		m_render_window.clear();
-		m_sprite.setPosition(m_interface_width, 0);
 
 		m_postfx_shader.setUniform("distortion_power", m_distortion_power);
 		m_postfx_shader.setUniform("texture_data",     sf::Shader::CurrentTexture);
@@ -367,11 +372,13 @@ void Main::renderPoints()
 
 void Main::resize(sf::Vector2u window_size, unsigned interface_width)
 {
+	m_render_window.setSize(window_size);
 	m_render_window.setView(sf::View(sf::FloatRect(0, 0, window_size.x, window_size.y)));
 
-	m_render_texture.create(window_size.x - m_interface_width, window_size.y, m_context_settings);
+	m_render_texture.create(window_size.x - m_interface_width * m_interface_visible, window_size.y, m_context_settings);
+
 	m_sprite.setTexture(m_render_texture.getTexture(), true);	
-	m_sprite.setPosition(interface_width, 0);
+	m_sprite.setPosition(interface_width * m_interface_visible, 0);
 
 	m_interface_width = interface_width;
 }
@@ -380,132 +387,140 @@ void Main::processInterface()
 {
 	ImGui::SetNextWindowPos(ImVec2(0, 0));
 	ImGui::SetNextWindowSize(ImVec2(m_interface_width, m_render_texture.getSize().y));
-	ImGui::Begin(
+	
+	if (m_interface_visible = ImGui::Begin(
 		"Options", 
 		nullptr, 
 		ImGuiWindowFlags_NoMove
-	);
-
-	auto gui_window_size = ImGui::GetWindowSize();
-	if (gui_window_size.x != m_interface_width)
-		resize(m_render_window.getSize(), gui_window_size.x);
-
-	// Capture settings
-	ImGui::SeparatorText("Capture settings");
-
-	static int capture_device_index = 0;
-	const auto& capture_devices = alu::SoundCaptureDevice::GetDevices();
-	if (ImGui::BeginCombo("Capture device", capture_devices[capture_device_index].c_str()))
+	))
 	{
-		for (size_t i = 0; i < std::size(capture_devices); i++)
-		{
-			bool selected = i == capture_device_index;
-			if (ImGui::Selectable(capture_devices[i].c_str(), selected))
-				m_capture_device.create(capture_devices[capture_device_index = i]);
+		auto gui_window_size = ImGui::GetWindowSize();
+		if (gui_window_size.x != m_interface_width)
+			resize(m_render_window.getSize(), gui_window_size.x);
 
-			if (selected)
-				ImGui::SetItemDefaultFocus();
+		// Capture settings
+		ImGui::SeparatorText("Capture settings");
+
+		static int capture_device_index = 0;
+		const auto& capture_devices = alu::SoundCaptureDevice::GetDevices();
+		if (ImGui::BeginCombo("Capture device", capture_devices[capture_device_index].c_str()))
+		{
+			for (size_t i = 0; i < std::size(capture_devices); i++)
+			{
+				bool selected = i == capture_device_index;
+				if (ImGui::Selectable(capture_devices[i].c_str(), selected))
+					m_capture_device.create(capture_devices[capture_device_index = i]);
+
+				if (selected)
+					ImGui::SetItemDefaultFocus();
+			}
+
+			ImGui::EndCombo();
 		}
 
-		ImGui::EndCombo();
+		if (ImGui::SliderInt("Recording time", &m_recording_interval_ms, 10, 300, "%d ms"))
+			m_capture_device.setProcessingInterval(std::chrono::milliseconds(m_recording_interval_ms));
+
+		// Visualization settings
+		ImGui::SeparatorText("Visualization");
+
+		static std::pair<VisualizationMode, const char*> visualization_modes[] = {
+			{VisualizationMode::Points, "Points"},
+			{VisualizationMode::Lines,  "Lines" }
+		};
+
+		static int visualization_mode_index = ComboBoxDefaultIndex(
+			visualization_modes, VisualizationMode::Default
+		);
+
+		m_visualization_mode = ComboBox("Visualization mode", visualization_modes, &visualization_mode_index);
+
+		ImGui::SliderFloat("Thickness",             &m_thickness,        .5f, 10.f );
+		ImGui::SliderInt  ("Points limit",          &m_max_points,        1,  10000);
+		ImGui::SliderFloat("Distortion power",      &m_distortion_power, .1f, 5.f  );
+		ImGui::SliderInt  ("Glow radius",           &m_glow_radius,       0,  20   );
+
+		ColorEdit("Color",            &m_color           );
+		ColorEdit("Background color", &m_background_color);
+
+		if (ImGui::Checkbox("Vertical synchronization", &m_vertical_sync))
+			m_render_window.setVerticalSyncEnabled(m_vertical_sync);
+
+		ImGui::Text("FPS: %d", m_fps);
+
+		// Signal source settings
+		ImGui::SeparatorText("Signal source");
+
+		static std::pair<SignalSource, const char*> signal_sources[] = {
+			{SignalSource::LeftChannel,  "Left channel" },
+			{SignalSource::RightChannel, "Right channel"},
+			{SignalSource::Time,         "Time"         }
+		};
+
+		static int x_axis_source_index = ComboBoxDefaultIndex(
+			signal_sources,
+			SignalSource::DefaultX
+		);
+
+		static int y_axis_source_index = ComboBoxDefaultIndex(
+			signal_sources,
+			SignalSource::DefaultY
+		);
+
+		m_x_axis_source = ComboBox(
+			"X signal source",
+			signal_sources, 
+			&x_axis_source_index
+		);
+
+		m_y_axis_source = ComboBox(
+			"Y signal source",
+			signal_sources, 
+			&y_axis_source_index
+		);
+
+		// Signal interpretation settings
+		ImGui::SeparatorText("Signal interpretation");
+
+		static std::pair<SignalInterpretation, const char*> signal_interpretation[] = {
+			{SignalInterpretation::Cartesian, "Cartesian"},
+			{SignalInterpretation::Polar,     "Polar"    }
+		};
+
+		static int signal_interpretation_index = ComboBoxDefaultIndex(
+			signal_interpretation,
+			SignalInterpretation::Default
+		);
+
+		m_signal_interpretation = ComboBox(
+			"Signal interpretation", 
+			signal_interpretation, 
+			&signal_interpretation_index
+		);
+
+		static bool sync_amplification = true;
+		ImGui::Checkbox("Synchronize amplification", &sync_amplification);
+
+		if (ImGui::SliderFloat("X signal amplification", &m_x_amplification, 0.f, 10000.f))
+			if (sync_amplification)
+				m_y_amplification = m_x_amplification;
+
+		if (ImGui::SliderFloat("Y signal amplification", &m_y_amplification, 0.f, 10000.f))
+			if (sync_amplification)
+				m_x_amplification = m_y_amplification;
+
+		// Debugging
+		ImGui::SeparatorText("Debugging");
+
+		if (ImGui::Button("Reload shaders"))
+			loadShaders();
 	}
 
-	if (ImGui::SliderInt("Recording time", &m_recording_interval_ms, 10, 300, "%d ms"))
-		m_capture_device.setProcessingInterval(std::chrono::milliseconds(m_recording_interval_ms));
-
-	// Visualization settings
-	ImGui::SeparatorText("Visualization");
-
-	static std::pair<VisualizationMode, const char*> visualization_modes[] = {
-		{VisualizationMode::Points, "Points"},
-		{VisualizationMode::Lines,  "Lines" }
-	};
-
-	static int visualization_mode_index = ComboBoxDefaultIndex(
-		visualization_modes, VisualizationMode::Default
-	);
-
-	m_visualization_mode = ComboBox("Visualization mode", visualization_modes, &visualization_mode_index);
-
-	ImGui::SliderFloat("Thickness",             &m_thickness,        .5f, 10.f );
-	ImGui::SliderInt  ("Points limit",          &m_max_points,        1,  10000);
-	ImGui::SliderFloat("Distortion power",      &m_distortion_power, .1f, 5.f  );
-	ImGui::SliderInt  ("Glow radius",           &m_glow_radius,       0,  20   );
-
-	ColorEdit("Color",            &m_color           );
-	ColorEdit("Background color", &m_background_color);
-
-	if (ImGui::Checkbox("Vertical synchronization", &m_vertical_sync))
-		m_render_window.setVerticalSyncEnabled(m_vertical_sync);
-
-	ImGui::Text("FPS: %d", m_fps);
-
-	// Signal source settings
-	ImGui::SeparatorText("Signal source");
-
-	static std::pair<SignalSource, const char*> signal_sources[] = {
-		{SignalSource::LeftChannel,  "Left channel" },
-		{SignalSource::RightChannel, "Right channel"},
-		{SignalSource::Time,         "Time"         }
-	};
-
-	static int x_axis_source_index = ComboBoxDefaultIndex(
-		signal_sources,
-		SignalSource::DefaultX
-	);
-
-	static int y_axis_source_index = ComboBoxDefaultIndex(
-		signal_sources,
-		SignalSource::DefaultY
-	);
-
-	m_x_axis_source = ComboBox(
-		"X signal source",
-		signal_sources, 
-		&x_axis_source_index
-	);
-
-	m_y_axis_source = ComboBox(
-		"Y signal source",
-		signal_sources, 
-		&y_axis_source_index
-	);
-
-	// Signal interpretation settings
-	ImGui::SeparatorText("Signal interpretation");
-
-	static std::pair<SignalInterpretation, const char*> signal_interpretation[] = {
-		{SignalInterpretation::Cartesian, "Cartesian"},
-		{SignalInterpretation::Polar,     "Polar"    }
-	};
-
-	static int signal_interpretation_index = ComboBoxDefaultIndex(
-		signal_interpretation,
-		SignalInterpretation::Default
-	);
-
-	m_signal_interpretation = ComboBox(
-		"Signal interpretation", 
-		signal_interpretation, 
-		&signal_interpretation_index
-	);
-
-	static bool sync_amplification = true;
-	ImGui::Checkbox("Synchronize amplification", &sync_amplification);
-
-	if (ImGui::SliderFloat("X signal amplification", &m_x_amplification, 0.f, 10000.f))
-		if (sync_amplification)
-			m_y_amplification = m_x_amplification;
-
-	if (ImGui::SliderFloat("Y signal amplification", &m_y_amplification, 0.f, 10000.f))
-		if (sync_amplification)
-			m_x_amplification = m_y_amplification;
-
-	// Debugging
-	ImGui::SeparatorText("Debugging");
-
-	if (ImGui::Button("Reload shaders"))
-		loadShaders();
+	if (m_interface_visible_last != m_interface_visible)
+	{
+		resize(m_render_window.getSize(), m_interface_width);
+		m_interface_visible_last = m_interface_visible;
+	}
 
 	ImGui::End();
 }
@@ -533,14 +548,16 @@ void Main::onClose(const sf::Event& event)
 
 void Main::onResize(const sf::Event& event)
 {
-	static const unsigned minimum_size = m_interface_width + 100;
-	if (event.size.width < minimum_size)
-	{
-		m_render_window.setSize(sf::Vector2u(minimum_size, event.size.height));
-		return;
-	}
+	const unsigned minimum_width  = m_interface_width + 100;
+	const unsigned minimum_height = 100;
 
-	resize(sf::Vector2u(event.size.width, event.size.height), m_interface_width);
+	resize(
+		sf::Vector2u(
+			std::max(minimum_width,  event.size.width), 
+			std::max(minimum_height, event.size.height)
+		), 
+		m_interface_width
+	);
 }
 
 //================================================= GUI helpers
@@ -611,6 +628,8 @@ int main()
 {
 	Main instance;
 	instance.start();
+
+	return 0;
 }
 
 //=================================================
