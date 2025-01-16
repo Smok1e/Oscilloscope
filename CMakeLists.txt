@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
 
+# Ensure that the repo is cloned properly
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/OpenALUtils/CMakeLists.txt")
+	message(FATAL_ERROR "external/OpenALUtils does not contains CMakeLists.txt; Perhaps you forget to do git submodule init && git submodule update?")
+endif ()
+
 project(
 	Oscilloscope
 	VERSION 1.0.0
