@@ -5,6 +5,7 @@
 #include <deque>
 #include <algorithm>
 #include <numbers>
+#include <cmath>
 
 #include <SFML/Graphics.hpp>
 
@@ -153,7 +154,12 @@ void Main::start()
 
 	loadShaders();
 
-	ImGui::SFML::Init(m_render_window);
+	if (!ImGui::SFML::Init(m_render_window))
+	{
+		std::cerr << "ImGUI-SFML initialization failure" << std::endl;
+		return;
+	}
+
 	sf::Clock delta_clock;
 
 	commitSamples();
@@ -162,7 +168,7 @@ void Main::start()
 		sf::Event event;
 		while (m_render_window.pollEvent(event))
 		{
-			ImGui::SFML::ProcessEvent(event);
+			ImGui::SFML::ProcessEvent(m_render_window, event);
 			onEvent(event);
 		}
 

@@ -15,20 +15,12 @@ add_executable(
 )
 
 # OpenALUtils
+add_subdirectory(external)
+target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML)
+
+# ImGUI-SFML
 add_subdirectory(external/OpenALUtils)
 target_link_libraries(Oscilloscope PRIVATE OpenALUtils)
-
-# SFML
-find_package(SFML COMPONENTS system window graphics CONFIG REQUIRED)
-target_link_libraries(Oscilloscope PRIVATE sfml-system sfml-network sfml-graphics sfml-window)
-
-# Imgui
-find_package(imgui CONFIG REQUIRED)
-target_link_libraries(Oscilloscope PRIVATE imgui::imgui)
-
-# Imgui-SFML
-find_package(ImGui-SFML CONFIG REQUIRED)
-target_link_libraries(Oscilloscope PRIVATE ImGui-SFML::ImGui-SFML)
 
 # Copy resources after build
 add_custom_command(
