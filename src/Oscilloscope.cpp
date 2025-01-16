@@ -4,7 +4,6 @@
 #include <chrono>
 #include <deque>
 #include <algorithm>
-#include <numbers>
 #include <cmath>
 
 #include <SFML/Graphics.hpp>
@@ -73,7 +72,10 @@ private:
 	alu::SoundDevice          m_sound_device     {};
 	alu::SoundCaptureDevice   m_capture_device   {};
 	alu::SoundBuffer          m_sound_buffer     {};
-							  				       
+
+	std::chrono::high_resolution_clock::time_point m_last_render_time {};
+    int                                            m_fps {};
+
 	sf::ContextSettings       m_context_settings {};
 	sf::RenderWindow          m_render_window    {};
 	sf::RenderTexture         m_render_texture   {};
@@ -81,9 +83,9 @@ private:
 	std::deque<sf::Vector2f>  m_points     {};
 	int                       m_max_points {1000};
 
-	int                                            m_recording_interval_ms {50};
-	std::chrono::high_resolution_clock::time_point m_recording_start_time  {};
-	size_t                                         m_last_processed_sample {0};
+	int                                   m_recording_interval_ms {50};
+	std::chrono::system_clock::time_point m_recording_start_time  {};
+	size_t                                m_last_processed_sample {0};
 
 	float m_x_amplification  {1000.f};
 	float m_y_amplification  {1000.f};
@@ -187,10 +189,10 @@ void Main::start()
 		m_render_window.clear();
 		m_sprite.setPosition(m_interface_width, 0);
 
+		m_postfx_shader.setUniform("distortion_power", m_distortion_power);
+		m_postfx_shader.setUniform("texture_data",     sf::Shader::CurrentTexture);
 		m_postfx_shader.setUniform("texture_size",     sf::Glsl::Vec2(m_render_texture.getSize()));
 		m_postfx_shader.setUniform("texture_offset",   sf::Glsl::Vec2(m_sprite.getPosition()));
-		m_postfx_shader.setUniform("distortion_power", m_distortion_power);
-		m_postfx_shader.setUniform("texture",          sf::Shader::CurrentTexture);
 		m_postfx_shader.setUniform("background_color", sf::Glsl::Vec4(m_background_color));
 		m_postfx_shader.setUniform("glow_radius",      m_glow_radius);
 
@@ -198,6 +200,12 @@ void Main::start()
 
 		ImGui::SFML::Render(m_render_window);
 		m_render_window.display();
+
+		auto current_time = std::chrono::system_clock::now();
+        auto render_time = current_time - m_last_render_time;
+		m_last_render_time = current_time;
+
+		m_fps = 1.0 / std::chrono::duration_cast<std::chrono::duration<double>>(render_time).count();
 	}
 }
 
@@ -374,7 +382,7 @@ void Main::processInterface()
 	ImGui::Begin(
 		"Options", 
 		nullptr, 
-		ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove
+		ImGuiWindowFlags_NoMove
 	);
 
 	auto gui_window_size = ImGui::GetWindowSize();
@@ -428,6 +436,8 @@ void Main::processInterface()
 
 	if (ImGui::Checkbox("Vertical synchronization", &m_vertical_sync))
 		m_render_window.setVerticalSyncEnabled(m_vertical_sync);
+
+	ImGui::Text("FPS: %d", m_fps);
 
 	// Signal source settings
 	ImGui::SeparatorText("Signal source");

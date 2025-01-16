@@ -5,7 +5,7 @@
 uniform float     distortion_power;
 uniform vec2      texture_size;
 uniform vec2      texture_offset;
-uniform sampler2D texture;
+uniform sampler2D texture_data;
 uniform vec4      background_color;
 uniform int       glow_radius;
 
@@ -36,7 +36,7 @@ vec4 interpolate(vec4 a, vec4 b, float t)
 vec4 calc_color(vec2 coords)
 {
 	vec2 uv = (coords - texture_offset) / texture_size;
-	vec4 color = texture2D(texture, barrel_distortion(uv));
+	vec4 color = texture(texture_data, barrel_distortion(uv));
 
 	if ((int(coords.y) % 4) * (int(coords.x) % 4) == 0)
 		return interpolate(background_color, color, .6f);
