@@ -4,7 +4,12 @@ A simple C++ program that draws an XY oscillogram of sound from microphone.
 
 # Build instructions
 ## Windows
-Ensure to install [git](https://git-scm.com/), [cmake](https://cmake.org/) and [vcpkg](https://vcpkg.io/en/), then run these commands:
+Ensure to install [git](https://git-scm.com/), [cmake](https://cmake.org/) and [vcpkg](https://vcpkg.io/en/);
+Install ImGui-SFML:
+```
+vcpkg install imgui-SFML
+```
+Then run these commands:
 ```
 git clone https://github.com/Smok1e/Oscilloscope
 cd Oscilloscope
